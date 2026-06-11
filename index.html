@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capacitación Municipal - Panel por Secretaría</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+</head>
+<body>
+
+    <header class="navbar-filtros">
+        <div class="logo-container">
+            <img src="logo capa.png" alt="Logo">
+            <h2 id="nombreSecretariaHeader" class="titulo-secretaria">Cargando área...</h2>
+        </div>
+
+        <div class="filtros-wrapper">
+            <div class="f-item">
+                <label>Filtrar por Oficina</label>
+                <select id="selectOficina"><option value="">Todas las Oficinas</option></select>
+            </div>
+            <div class="f-item">
+                <label>Cargo / Escalafón</label>
+                <select id="selectCargo"><option value="">Todos los Cargos</option></select>
+            </div>
+            <div class="f-item">
+                <label>Nombre del Agente</label>
+                <input type="text" id="inputNombre" placeholder="Buscar por nombre...">
+            </div>
+            <div class="f-item">
+                <label>Número de Legajo</label>
+                <input type="text" id="inputLegajo" placeholder="Buscar legajo...">
+            </div>
+
+            <div class="f-item">
+                <label>Estado de Capacitación</label>
+                <select id="selectEstado">
+                    <option value="">Todos los Estados</option>
+                    <option value="COMPLETO">✅ COMPLETO</option> 
+                    <option value="EN PROCESO">⏳ EN PROCESO</option>
+                    <option value="SIN INICIAR">🚨 SIN INICIAR</option>
+                </select>
+            </div>
+            <button id="btnLimpiar" class="btn-clean">Limpiar Filtros</button>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <div class="status-bar">
+            <span id="contador">Personal encontrado: 0</span>
+        </div>
+
+        <div class="table-container">
+            <table id="tablaEmpleados">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">Legajo</th>
+                        <th>Agente / Oficina</th>
+                        <th>Cargo</th>
+                        <th>Capacitaciones</th>
+                        <th style="width: 80px; text-align: center;">Créditos</th>
+                        <th style="width: 80px; text-align: center;">Objetivo</th>
+                        <th style="width: 80px; text-align: center;">Faltan</th>
+                        <th style="width: 130px; text-align: center;">Estado</th>
+                    </tr>
+                </thead>
+                <tbody id="tbody">
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>

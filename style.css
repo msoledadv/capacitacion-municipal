@@ -1,0 +1,173 @@
+/* RESET TOTAL */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex; /* Sidebar al lado de la tabla */
+    height: 100vh;
+    background-color: #f0f2f5;
+    overflow: hidden; /* Evita scroll doble en el body */
+}
+
+/* SIDEBAR IZQUIERDA */
+.navbar-filtros {
+    width: 300px;
+    background: #ffffff;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    height: 100vh;
+    flex-shrink: 0;
+    overflow-y: auto; /* Permite scroll si hay muchos filtros */
+    padding-bottom: 30px;
+}
+
+/* LOGO */
+.logo-container {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.logo-container img {
+    max-width: 100%;
+    height: auto;
+    max-height: 80px;
+}
+
+/* FILTROS */
+.filtros-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.f-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.f-item label {
+    font-size: 12px;
+    font-weight: bold;
+    color: #444;
+    margin-bottom: 5px;
+}
+
+select, input {
+    height: 35px;
+    padding: 0 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 100%;
+    background-color: #fff;
+}
+
+.btn-clean {
+    margin-top: 10px;
+    height: 35px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.btn-clean:hover {
+    background: #c82333;
+}
+
+/* CONTENIDO DERECHA (TABLA) */
+.main-content {
+    flex-grow: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.status-bar {
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #333;
+}
+
+.table-container {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    background: #0056b3;
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    position: sticky;
+    top: 0;
+}
+
+td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+    vertical-align: middle;
+}
+
+/* COLUMNA DE ESTADO ESPECÍFICA */
+td:last-child {
+    width: 140px;
+    text-align: center;
+}
+
+/* EL BADGE (ESTADO) - DISEÑO PASTILLA */
+.badge {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 50px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    white-space: nowrap; /* Evita que el texto se rompa */
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    min-width: 115px;
+    text-align: center;
+}
+
+/* COLORES DE ESTADOS */
+.cumplido {
+    background-color: #d4edda !important;
+    color: #155724 !important;
+    border: 1px solid #c3e6cb;
+}
+
+.proceso {
+    background-color: #fff3cd !important;
+    color: #856404 !important;
+    border: 1px solid #ffeeba;
+}
+
+.pendiente {
+    background-color: #f8d7da !important;
+    color: #721c24 !important;
+    border: 1px solid #f5c6cb;
+}
+
+/* AJUSTE PARA CAPACITACIONES */
+.col-capa {
+    line-height: 1.4;
+    color: #555;
+}
