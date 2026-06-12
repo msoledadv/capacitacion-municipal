@@ -1,16 +1,12 @@
 let datosAgrupados = [];
 let nombreSecretariaDetectada = "";
 
-// ==========================================
-// 1. CONFIGURACIÓN DE URL DINÁMICA
-// ==========================================
-// Detecta el parámetro ?csv= en la URL (Ej: ?csv=secretaria2)
-// Si no encuentra ningún parámetro, por defecto cargará 'secretaria1.csv'
+// Parámetros de la URL para ver qué CSV cargar (Ej: ?csv=secretaria2)
 const urlParams = new URLSearchParams(window.location.search);
 const archivoCSV = urlParams.get('csv') ? `${urlParams.get('csv')}.csv` : 'secretaria1.csv';
 console.log("Archivo CSV solicitado para carga:", archivoCSV);
 
-// Carga del CSV dinámico mediante PapaParse
+// Carga principal con PapaParse
 Papa.parse(archivoCSV, {
     download: true,
     header: true,
@@ -22,7 +18,7 @@ Papa.parse(archivoCSV, {
     },
     error: function(err) {
         console.error(`Error al cargar el archivo ${archivoCSV}:`, err);
-        // Respaldo: si falla el archivo dinámico, intenta cargar al menos el principal
+        // Auxiliar: si falla el dinámico, carga por defecto el 1
         Papa.parse("secretaria1.csv", {
             download: true,
             header: true,
@@ -33,10 +29,7 @@ Papa.parse(archivoCSV, {
     }
 });
 
-// ==========================================
-// 2. FORMATEADORES Y PROCESAMIENTO DE DATOS
-// ==========================================
-// Formateador híbrido para fechas de Excel o texto ISO
+// Convierte fechas raras de Excel o ISO a formato DD/MM/AAAA
 function formatearFecha(val) {
     if (val === undefined || val === null || String(val).trim() === "" || String(val).toLowerCase() === "s/d") {
         return 's/d';
@@ -63,11 +56,12 @@ function formatearFecha(val) {
     return stringFecha || 's/d';
 }
 
+// Agrupa las filas del CSV por legajo y calcula los totales
 function procesarDatos(filas) {
     const mapa = new Map();
     let uSec = "", uOfi = "SIN OFICINA", uLeg = "", uNom = "", uCar = "";
 
-    // Función limpia-números tolerante a comas de Excel
+    // Parsea números y limpia las comas de Excel
     const num = (v) => {
         if (v === undefined || v === null || v === "") return 0;
         let n = v.toString().replace(',', '.');
@@ -75,7 +69,7 @@ function procesarDatos(filas) {
     };
 
     filas.forEach(fila => {
-        // Lógica de Relleno (Fill Down) adaptada a las columnas del CSV
+        // Lógica Fill Down para celdas combinadas del reporte
         if (fila["SECRETARIA"] && fila["SECRETARIA"].toString().trim() !== "") uSec = fila["SECRETARIA"].toString().trim();
         if (fila["OFICINA"] && fila["OFICINA"].toString().trim() !== "") uOfi = fila["OFICINA"].toString().trim();
         if (fila["LEGAJO"]) uLeg = fila["LEGAJO"].toString().trim();
@@ -84,7 +78,6 @@ function procesarDatos(filas) {
 
         if (!uLeg || uLeg === "0") return; 
 
-        // Si el agente no está en el mapa, lo creamos
         if (!mapa.has(uLeg)) {
             mapa.set(uLeg, {
                 LEGAJO: uLeg,
@@ -101,7 +94,6 @@ function procesarDatos(filas) {
 
         const p = mapa.get(uLeg);
         
-        // Procesar capacitación de esta fila
         const cursoVal = fila["CAPACITACION"];
         if (cursoVal && cursoVal.toString().trim() !== "0" && cursoVal.toString().trim() !== "" && cursoVal.toString().toLowerCase() !== "s/d") {
             const fechaVal = formatearFecha(fila["Fecha Aprobación"]);
@@ -115,12 +107,10 @@ function procesarDatos(filas) {
             }
         }
         
-        // Extracción de valores numéricos directos del CSV de Excel
         let creditosFila = num(fila["Suma de CREDITOS"]);
         let objetivoFila = num(fila["Suma de OBJETIVO"]);
         let saldoFila = num(fila["Suma de SALDO RESTANTE"]);
 
-        // Guardamos los valores correspondientes al agente
         p.CREDITOS = creditosFila;
         if (objetivoFila > 0) p.OBJETIVO = objetivoFila;
         p.SALDO_RESTANTE = saldoFila; 
@@ -146,9 +136,7 @@ function actualizarInterfazTitulo() {
     }
 }
 
-// ==========================================
-// 3. EVENTOS Y FILTROS DE INTERFAZ
-// ==========================================
+// Listeners de los filtros del sidebar
 function inicializarEventos() {
     const ids = ['selectOficina', 'selectCargo', 'inputNombre', 'inputLegajo', 'selectEstado'];
     
@@ -170,6 +158,7 @@ function inicializarEventos() {
     });
 }
 
+// Lógica de filtrado en tiempo real
 function filtrar() {
     const ofi = document.getElementById('selectOficina').value;
     const car = document.getElementById('selectCargo').value;
@@ -198,9 +187,7 @@ function filtrar() {
     renderTable(filtrados);
 }
 
-// ==========================================
-// 4. RENDERIZADO DE TABLA Y SELECTS
-// ==========================================
+// Dibuja las filas de los agentes y procesa las capacitaciones vigentes e históricas
 function renderTable(data) {
     const tbody = document.getElementById('tbody');
     tbody.innerHTML = '';
@@ -224,9 +211,22 @@ function renderTable(data) {
         let listaCursosVisual = "";
         if (p.CURSOS && p.CURSOS.length > 0) {
             listaCursosVisual = `<ul style="margin:0; padding-left:12px; list-style-type:disc;">`;
+            
             p.CURSOS.forEach(c => {
-                listaCursosVisual += `<li><strong>${c.nombre}</strong> <span style="color:#666; font-size:11px; margin-left:3px;">(${c.fecha})</span></li>`;
+                // Filtro para separar lo anterior al 01/04/2024 (2022 y 2023 pasan a gris)
+                const esHistorico = c.fecha.includes('/2022') || c.fecha.includes('/2023');
+                
+                const colorTexto = esHistorico ? '#9ca3af' : '#1f2937'; 
+                const colorFecha = esHistorico ? '#cbd5e1' : '#666';
+                const etiquetaHistorico = esHistorico ? ' <span style="font-size:10px; font-style:italic; font-weight:normal; color:#cbd5e1;">(Histórico)</span>' : '';
+
+                listaCursosVisual += `
+                    <li style="color: ${colorTexto};">
+                        <strong style="font-weight: ${esHistorico ? 'normal' : 'bold'};">${c.nombre}</strong> 
+                        <span style="color:${colorFecha}; font-size:11px; margin-left:3px;">(${c.fecha})</span>${etiquetaHistorico}
+                    </li>`;
             });
+            
             listaCursosVisual += `</ul>`;
         } else {
             listaCursosVisual = '<span style="color:#aaa; font-style:italic;">Sin cursos registrados</span>';
@@ -251,6 +251,7 @@ function renderTable(data) {
     document.getElementById('contador').innerText = `Personal total filtrado: ${data.length}`;
 }
 
+// Carga las opciones únicas en el select de oficinas
 function poblarOficinas() {
     const sOfi = document.getElementById('selectOficina');
     if (!sOfi) return;
@@ -260,6 +261,7 @@ function poblarOficinas() {
     oficinas.forEach(o => sOfi.innerHTML += `<option value="${o}">${o}</option>`);
 }
 
+// Carga las opciones únicas en el select de cargos
 function poblarCargos() {
     const sCar = document.getElementById('selectCargo');
     if (!sCar) return;
