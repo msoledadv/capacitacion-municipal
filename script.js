@@ -56,7 +56,7 @@ function formatearFecha(val) {
     return stringFecha || 's/d';
 }
 
-// Agrupa las filas del CSV por legajo y calcula los totales
+// Agrupa las filas del CSV por legajo y calcula los totales acumulados
 function procesarDatos(filas) {
     const mapa = new Map();
     let uSec = "", uOfi = "SIN OFICINA", uLeg = "", uNom = "", uCar = "";
@@ -70,7 +70,15 @@ function procesarDatos(filas) {
 
     filas.forEach(fila => {
         // Lógica Fill Down para celdas combinadas del reporte
-        if (fila["SECRETARIA"] && fila["SECRETARIA"].toString().trim() !== "") uSec = fila["SECRETARIA"].toString().trim();
+        if (fila["SECRETARIA"] && fila["SECRETARIA"].toString().trim() !== "") {
+            let secRaw = fila["SECRETARIA"].toString().trim();
+            if (secRaw.toUpperCase() === "SECRETARIA") {
+                uSec = "SECRETARÍA";
+            } else {
+                uSec = secRaw;
+            }
+        }
+        
         if (fila["OFICINA"] && fila["OFICINA"].toString().trim() !== "") uOfi = fila["OFICINA"].toString().trim();
         if (fila["LEGAJO"]) uLeg = fila["LEGAJO"].toString().trim();
         if (fila["NOMBRE COMPLETO"] && fila["NOMBRE COMPLETO"].toString().trim() !== "") uNom = fila["NOMBRE COMPLETO"].toString().trim();
@@ -95,6 +103,8 @@ function procesarDatos(filas) {
         const p = mapa.get(uLeg);
         
         const cursoVal = fila["CAPACITACION"];
+        let cursoAgregadoNuevo = false;
+
         if (cursoVal && cursoVal.toString().trim() !== "0" && cursoVal.toString().trim() !== "" && cursoVal.toString().toLowerCase() !== "s/d") {
             const fechaVal = formatearFecha(fila["Fecha Aprobación"]);
             
@@ -104,6 +114,7 @@ function procesarDatos(filas) {
                     nombre: cursoVal.toString().trim(),
                     fecha: fechaVal
                 });
+                cursoAgregadoNuevo = true;
             }
         }
         
@@ -111,7 +122,11 @@ function procesarDatos(filas) {
         let objetivoFila = num(fila["Suma de OBJETIVO"]);
         let saldoFila = num(fila["Suma de SALDO RESTANTE"]);
 
-        p.CREDITOS = creditosFila;
+        // Suma acumulativa de créditos por cada curso único procesado
+        if (cursoAgregadoNuevo && creditosFila > 0) {
+            p.CREDITOS += creditosFila;
+        }
+
         if (objetivoFila > 0) p.OBJETIVO = objetivoFila;
         p.SALDO_RESTANTE = saldoFila; 
     });
