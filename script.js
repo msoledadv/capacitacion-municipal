@@ -1,12 +1,16 @@
 let datosAgrupados = [];
 let nombreSecretariaDetectada = "";
 
-// Parámetros de la URL para ver qué CSV cargar (Ej: ?csv=secretaria2)
+// ==========================================
+// 1. CONFIGURACIÓN DE URL DINÁMICA
+// ==========================================
+// Detecta el parámetro ?csv= en la URL (Ej: ?csv=secretaria2)
+// Si no encuentra ningún parámetro, por defecto cargará 'secretaria1.csv'
 const urlParams = new URLSearchParams(window.location.search);
 const archivoCSV = urlParams.get('csv') ? `${urlParams.get('csv')}.csv` : 'secretaria1.csv';
 console.log("Archivo CSV solicitado para carga:", archivoCSV);
 
-// Carga principal con PapaParse
+// Carga del CSV dinámico mediante PapaParse
 Papa.parse(archivoCSV, {
     download: true,
     header: true,
@@ -18,7 +22,7 @@ Papa.parse(archivoCSV, {
     },
     error: function(err) {
         console.error(`Error al cargar el archivo ${archivoCSV}:`, err);
-        // Auxiliar: si falla el dinámico, carga por defecto el 1
+        // Respaldo: si falla el archivo dinámico, intenta cargar al menos el principal
         Papa.parse("secretaria1.csv", {
             download: true,
             header: true,
@@ -29,7 +33,10 @@ Papa.parse(archivoCSV, {
     }
 });
 
-// Convierte fechas raras de Excel o ISO a formato DD/MM/AAAA
+// ==========================================
+// 2. FORMATEADORES Y PROCESAMIENTO DE DATOS
+// ==========================================
+// Formateador híbrido para fechas de Excel o texto ISO
 function formatearFecha(val) {
     if (val === undefined || val === null || String(val).trim() === "" || String(val).toLowerCase() === "s/d") {
         return 's/d';
@@ -56,12 +63,11 @@ function formatearFecha(val) {
     return stringFecha || 's/d';
 }
 
-// Agrupa las filas del CSV por legajo y calcula los totales acumulados
 function procesarDatos(filas) {
     const mapa = new Map();
-    let uSec = "", uOfi = "SIN OFICINA", uLeg = "", uNom = "", uCar = "";
+    let uSec = "", uOfi = "SIN OFICINA", uPago = "SIN OFICINA PAGO", uLeg = "", uNom = "", uCar = "";
 
-    // Parsea números y limpia las comas de Excel
+    // Función limpia-números tolerante a comas de Excel
     const num = (v) => {
         if (v === undefined || v === null || v === "") return 0;
         let n = v.toString().replace(',', '.');
@@ -69,29 +75,39 @@ function procesarDatos(filas) {
     };
 
     filas.forEach(fila => {
-        // Lógica Fill Down para celdas combinadas del reporte
-        if (fila["SECRETARIA"] && fila["SECRETARIA"].toString().trim() !== "") {
-            let secRaw = fila["SECRETARIA"].toString().trim();
-            if (secRaw.toUpperCase() === "SECRETARIA") {
-                uSec = "SECRETARÍA";
-            } else {
-                uSec = secRaw;
+        // --- DETECCIÓN DINÁMICA DE LA COLUMNA DE PAGO ---
+        // Buscamos cualquier columna en la fila actual que contenga "PAGO" en su nombre
+        let valorPagoFila = null;
+        Object.keys(fila).forEach(clave => {
+            if (clave.toUpperCase().includes("PAGO")) {
+                valorPagoFila = fila[clave];
             }
+        });
+
+        // Lógica de Relleno (Fill Down) adaptada a las columnas del CSV
+        if (fila["SECRETARIA"] && fila["SECRETARIA"].toString().trim() !== "") uSec = fila["SECRETARIA"].toString().trim();
+        if (fila["OFICINA"] && fila["OFICINA"].toString().trim() !== "") uOfi = fila["OFICINA"].toString().trim();
+        
+        // Si encontramos la columna de pago y tiene un texto válido, actualizamos la variable de arrastre
+        if (valorPagoFila && valorPagoFila.toString().trim() !== "" && valorPagoFila.toString().trim() !== "0") {
+            uPago = valorPagoFila.toString().trim();
         }
         
-        if (fila["OFICINA"] && fila["OFICINA"].toString().trim() !== "") uOfi = fila["OFICINA"].toString().trim();
         if (fila["LEGAJO"]) uLeg = fila["LEGAJO"].toString().trim();
         if (fila["NOMBRE COMPLETO"] && fila["NOMBRE COMPLETO"].toString().trim() !== "") uNom = fila["NOMBRE COMPLETO"].toString().trim();
         if (fila["CARGO ESCALAFON"] && fila["CARGO ESCALAFON"].toString().trim() !== "") uCar = fila["CARGO ESCALAFON"].toString().trim();
 
+        // Si la fila actual no identifica a un agente válido, no la agrupamos pero ya guardamos el arrastre de texto arriba
         if (!uLeg || uLeg === "0") return; 
 
+        // Si el agente no está en el mapa, lo creamos
         if (!mapa.has(uLeg)) {
             mapa.set(uLeg, {
                 LEGAJO: uLeg,
                 NOMBRE: uNom || 'Sin Nombre',
                 SECRETARIA: uSec || 'General',
                 OFICINA: uOfi,
+                OFICINA_PAGO: uPago, // Asigna la oficina de pago correctamente arrastrada
                 CARGO: uCar || 's/d',
                 CURSOS: [], 
                 CREDITOS: 0,
@@ -102,9 +118,13 @@ function procesarDatos(filas) {
 
         const p = mapa.get(uLeg);
         
-        const cursoVal = fila["CAPACITACION"];
-        let cursoAgregadoNuevo = false;
+        // Si el agente ya existía pero su Oficina de Pago figuraba por defecto, la actualizamos con el valor real arrastrado
+        if (p.OFICINA_PAGO === "SIN OFICINA PAGO" && uPago !== "SIN OFICINA PAGO") {
+            p.OFICINA_PAGO = uPago;
+        }
 
+        // Procesar capacitación de esta fila
+        const cursoVal = fila["CAPACITACION"];
         if (cursoVal && cursoVal.toString().trim() !== "0" && cursoVal.toString().trim() !== "" && cursoVal.toString().toLowerCase() !== "s/d") {
             const fechaVal = formatearFecha(fila["Fecha Aprobación"]);
             
@@ -114,19 +134,16 @@ function procesarDatos(filas) {
                     nombre: cursoVal.toString().trim(),
                     fecha: fechaVal
                 });
-                cursoAgregadoNuevo = true;
             }
         }
         
+        // Extracción de valores numéricos directos del CSV de Excel
         let creditosFila = num(fila["Suma de CREDITOS"]);
         let objetivoFila = num(fila["Suma de OBJETIVO"]);
         let saldoFila = num(fila["Suma de SALDO RESTANTE"]);
 
-        // Suma acumulativa de créditos por cada curso único procesado
-        if (cursoAgregadoNuevo && creditosFila > 0) {
-            p.CREDITOS += creditosFila;
-        }
-
+        // Guardamos los valores correspondientes al agente
+        p.CREDITOS = creditosFila;
         if (objetivoFila > 0) p.OBJETIVO = objetivoFila;
         p.SALDO_RESTANTE = saldoFila; 
     });
@@ -140,6 +157,7 @@ function procesarDatos(filas) {
     
     poblarCargos();
     poblarOficinas(); 
+    poblarOficinasPago(); 
     renderTable(datosAgrupados);
     inicializarEventos();
 }
@@ -151,9 +169,12 @@ function actualizarInterfazTitulo() {
     }
 }
 
-// Listeners de los filtros del sidebar
+// ==========================================
+// 3. EVENTOS Y FILTROS DE INTERFAZ
+// ==========================================
 function inicializarEventos() {
-    const ids = ['selectOficina', 'selectCargo', 'inputNombre', 'inputLegajo', 'selectEstado'];
+    // Se sumó 'selectPago' a la lista de escucha de eventos
+    const ids = ['selectOficina', 'selectPago', 'selectCargo', 'inputNombre', 'inputLegajo', 'selectEstado'];
     
     ids.forEach(id => {
         const el = document.getElementById(id);
@@ -173,9 +194,9 @@ function inicializarEventos() {
     });
 }
 
-// Lógica de filtrado en tiempo real
 function filtrar() {
     const ofi = document.getElementById('selectOficina').value;
+    const pago = document.getElementById('selectPago').value; // Se toma el valor de oficina de pago
     const car = document.getElementById('selectCargo').value;
     const est = document.getElementById('selectEstado').value; 
     const nom = document.getElementById('inputNombre').value.toLowerCase().trim();
@@ -191,24 +212,27 @@ function filtrar() {
         }
 
         const matchOfi = (ofi === "" || p.OFICINA === ofi);
+        const matchPago = (pago === "" || p.OFICINA_PAGO === pago); // Validación del filtro de pago
         const matchCar = (car === "" || p.CARGO === car);
         const matchEst = (est === "" || estadoReal === est);
         const matchNom = (nom === "" || p.NOMBRE.toLowerCase().includes(nom));
         const matchLeg = (leg === "" || p.LEGAJO.toString().toLowerCase().includes(leg));
 
-        return matchOfi && matchCar && matchEst && matchNom && matchLeg;
+        return matchOfi && matchPago && matchCar && matchEst && matchNom && matchLeg;
     });
 
     renderTable(filtrados);
 }
 
-// Dibuja las filas de los agentes y procesa las capacitaciones vigentes e históricas
+// ==========================================
+// 4. RENDERIZADO DE TABLA Y SELECTS
+// ==========================================
 function renderTable(data) {
     const tbody = document.getElementById('tbody');
     tbody.innerHTML = '';
     
     if (data.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; color:#777; padding: 25px;">No se encontró personal con los filtros seleccionados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; color:#777; padding: 25px;">No se encontró personal con los filtros seleccionados.</td></tr>`;
         document.getElementById('contador').innerText = `Personal encontrado: 0`;
         return;
     }
@@ -228,7 +252,6 @@ function renderTable(data) {
             listaCursosVisual = `<ul style="margin:0; padding-left:12px; list-style-type:disc;">`;
             
             p.CURSOS.forEach(c => {
-                // Filtro para separar lo anterior al 01/04/2024 (2022 y 2023 pasan a gris)
                 const esHistorico = c.fecha.includes('/2022') || c.fecha.includes('/2023');
                 
                 const colorTexto = esHistorico ? '#9ca3af' : '#1f2937'; 
@@ -244,13 +267,15 @@ function renderTable(data) {
             
             listaCursosVisual += `</ul>`;
         } else {
-            listaCursosVisual = '<span style="color:#aaa; font-style:italic;">Sin cursos registrados</span>';
-        }
+    listaCursosVisual = '<span style="color:#aaa; font-style:italic;">Sin capacitaciones</span>';
+}
 
         const tr = document.createElement('tr');
+        // Se inyectó la celda correspondiente a ${p.OFICINA_PAGO} respetando el orden del HTML
         tr.innerHTML = `
             <td><mark style="background:none; font-weight:bold; color:#0056b3; font-family:monospace;">${p.LEGAJO}</mark></td>
             <td><strong>${p.NOMBRE}</strong><br><small style="color:#555; font-weight:500;">${p.OFICINA}</small></td>
+            <td><small>${p.OFICINA_PAGO}</small></td>
             <td><small>${p.CARGO}</small></td>
             <td class="col-capa">${listaCursosVisual}</td>
             <td style="text-align:center; font-weight:bold; color:#0056b3;">${p.CREDITOS.toFixed(1).replace('.0', '')}</td>
@@ -266,7 +291,6 @@ function renderTable(data) {
     document.getElementById('contador').innerText = `Personal total filtrado: ${data.length}`;
 }
 
-// Carga las opciones únicas en el select de oficinas
 function poblarOficinas() {
     const sOfi = document.getElementById('selectOficina');
     if (!sOfi) return;
@@ -276,7 +300,16 @@ function poblarOficinas() {
     oficinas.forEach(o => sOfi.innerHTML += `<option value="${o}">${o}</option>`);
 }
 
-// Carga las opciones únicas en el select de cargos
+// Nueva función para rellenar dinámicamente el selector de Oficinas de Pago
+function poblarOficinasPago() {
+    const sPago = document.getElementById('selectPago');
+    if (!sPago) return;
+    sPago.innerHTML = '<option value="">Todas las Oficinas de Pago</option>';
+    
+    const oficinasPago = [...new Set(datosAgrupados.map(p => p.OFICINA_PAGO))].filter(Boolean).sort();
+    oficinasPago.forEach(o => sPago.innerHTML += `<option value="${o}">${o}</option>`);
+}
+
 function poblarCargos() {
     const sCar = document.getElementById('selectCargo');
     if (!sCar) return;
